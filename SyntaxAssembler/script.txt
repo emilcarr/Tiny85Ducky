@@ -1,3 +1,7 @@
-WAIT 10000
-TYPE abcdefgABCDEFG
-GOTO 0
+WAIT 1000
+MODON 8
+TYPE R
+MODOFF 8
+TYPE https://www.youtube.com/watch?v=dQw4w9WgXcQ
+PRESS 0x28
+GOTO 5

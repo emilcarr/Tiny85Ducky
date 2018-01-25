@@ -25,6 +25,8 @@ shiftOn = shiftOnUK
 length = 0
 lineNumber = 0
 
+endianness = "little"
+
 def makeRegistrar():
     registry = {}
     def registrar(func):
@@ -38,12 +40,19 @@ operations = makeRegistrar()
 def dwordBytes(x):
     if x > 0xFFFFFFFF:
         raise OverflowError
-    return bytes([(x & 0xFF000000) >> 24, (x & 0xFF0000) >> 16, (x & 0xFF00) >> 8, (x & 0xFF)])
+    if endianness == "big":
+        return bytes([(x & 0xFF000000) >> 24, (x & 0xFF0000) >> 16, (x & 0xFF00) >> 8, (x & 0xFF)])
+    elif endianness == "little":
+        return bytes([(x & 0xFF), (x & 0xFF00) >> 8, (x & 0xFF0000) >> 16, (x & 0xFF000000) >> 24])
+
 
 def wordBytes(x):
     if x > 0xFFFF:
         raise OverflowError
-    return bytes([(x & 0xFF00) >> 8, (x & 0xFF)])
+    if endianness == "big":
+        return bytes([(x & 0xFF00) >> 8, (x & 0xFF)])
+    elif endianness == "little":
+        return bytes([(x & 0xFF), (x & 0xFF00) >> 8])
 
 @operations
 def GOTO(args):
@@ -93,7 +102,7 @@ def MODON(args):
         raise Exception("SyntaxError", "MODON expects integer value. Syntax: MODON [modifier]")
 
 @operations
-def MODON(args):
+def MODOFF(args):
     try:
         yield bytes([0xEE, int(args)])
     except ValueError:
@@ -104,6 +113,21 @@ def SHIFT(args):
     if(len(args) > 0):
         yield bytes([0xEF])
 
+@operations
+def TYPE(args):
+    for c in args:
+        if c in shiftOn:
+            yield bytes([0xEF])
+        yield bytes([keyMap[ord(c)]])
+
+@operations
+def PRESS(args):
+    for c in args.split(' '):
+        try:
+            yield bytes([int(args, 16)])
+        except ValueError:
+            raise Exception("SyntaxError", "PRESS expects hex value. Syntax: PRESS [keycode]")
+
 def assemble(inputFile):
     for line in inputFile:
         op = line.split(' ')[0]
@@ -112,11 +136,8 @@ def assemble(inputFile):
         if op in operations.all:
             for b in operations.all[op](args):
                 yield b
-        elif op == "TYPE":
-            for c in line[5:]:
-                if c in shiftOn:
-                    yield bytes([0xEF])
-                yield bytes([keyMap[ord(c)]])
+        else:
+            raise Exception("UnknownOperation", "This is not a valid or recognised operation.")
 
 if __name__ == "__main__":
     if len(sys.argv) == 3:

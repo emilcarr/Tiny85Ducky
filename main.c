@@ -1,22 +1,21 @@
 /*
-This is the part of the TrinketMouse code that is usually written in C
-I didn't want to mix it with the object oriented C++ code
+Tiny85Ducky is a fork of TrinketKeyboard (https://github.com/adafruit/Adafruit-Trinket-USB) by Adafruit, copyright 2013.
 
-Copyright (c) 2013 Adafruit Industries
+Copyright (c) 2018 FalseAscension
 All rights reserved.
 
-TrinketKeyboard is free software: you can redistribute it and/or modify
+Tiny85Ducky is free software: you can redistribute it and/or modify
 it under the terms of the GNU Lesser General Public License as
 published by the Free Software Foundation, either version 3 of
 the License, or (at your option) any later version.
 
-TrinketKeyboard is distributed in the hope that it will be useful,
+Tiny85Ducky is distributed in the hope that it will be useful,
 but WITHOUT ANY WARRANTY; without even the implied warranty of
 MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 GNU Lesser General Public License for more details.
 
 You should have received a copy of the GNU Lesser General Public
-License along with TrinketKeyboard. If not, see
+License along with Tiny85Ducky. If not, see
 <http://www.gnu.org/licenses/>.
 */
 
@@ -238,6 +237,7 @@ void wait(uint32_t millis) {
 }
 
 #include "Light_WS2812/light_ws2812.h"
+#include <avr/eeprom.h>
 
 #define CONFIG_LOOP         0x01
 #define CONFIG_LOOP_DELAY   0x02
@@ -258,25 +258,26 @@ int main() {
     uint8_t byte;
     for(uint16_t i = 0; i < 512; i++) {
         usbPoll();
+        
+        byte = eeprom_read_byte((uint8_t*)i);
 
-        byte = eeprom_read_byte(i);
         if(byte > 0xE7) {
             switch(byte) {
                 case 0xE8:                          // GOTO
                     i++;                            // Move to next location;
-                    i = eeprom_read_word(i) - 1;    // Jump to new location ((i - 1) + 1);
+                    i = eeprom_read_word((uint16_t*)i) - 1;    // Jump to new location ((i - 1) + 1);
                     break;
 
                 case 0xE9:                          // WAIT
                     i++;                            
-                    wait(eeprom_read_dword(i));     // Read 4 bytes and wait that amount in ms;
+                    wait(eeprom_read_dword((uint32_t*)i));     // Read 4 bytes and wait that amount in ms;
                     i += 3;                         // Move to next bytecode (3 + 1);
                     break;
 
                 case 0xEA:                          // JUMP IF NUM
                     i++;
                     if(led_state & KB_LED_NUM)      // Check numlock state;
-                        i = eeprom_read_word(i) - 1;
+                        i = eeprom_read_word((uint16_t*)i) - 1;
                     else
                         i++;
                     break;
@@ -284,7 +285,7 @@ int main() {
                 case 0xEB:                          // JUMP IF CAPS
                     i++;
                     if(led_state & KB_LED_CAPS)     
-                        i = eeprom_read_word(i) - 1;
+                        i = eeprom_read_word((uint16_t*)i) - 1;
                     else
                         i++;
                     break;
@@ -292,29 +293,31 @@ int main() {
                 case 0xEC:                          // JUMP IF SCROLL
                     i++;
                     if(led_state & KB_LED_SCROLL)     
-                        i = eeprom_read_word(i) - 1;
+                        i = eeprom_read_word((uint16_t*)i) - 1;
                     else
                         i++;
                     break;
                 
                 case 0xED:                          // MODON
                     i++;
-                    modifiers |= 1 << eeprom_read_byte(i);
+                    modifiers |= 1 << eeprom_read_byte((uint8_t*)i);
                     break;
 
                 case 0xEE:                          // MODOFF
                     i++;
-                    modifiers &= ~( 1 << eeprom_read_byte(i));
+                    modifiers &= ~( 1 << eeprom_read_byte((uint8_t*)i));
                     break;
 
                 case 0xEF:                          // SHIFT
                     i++;
-                    pressKey(modifiers | KEYCODE_MOD_LEFT_SHIFT, eeprom_read_byte(i));
+                    pressKey(modifiers | KEYCODE_MOD_LEFT_SHIFT, eeprom_read_byte((uint8_t*)i));
+                    pressKey(0, 0);
                     break;
             }
-            continue;
+        }else {
+            pressKey(modifiers, byte);
+            pressKey(0, 0);
         }
-        pressKey(modifiers, byte);
     }
 
     while(1) usbPoll();
