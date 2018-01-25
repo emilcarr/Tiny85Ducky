@@ -244,7 +244,7 @@ void wait(uint32_t millis) {
 
 struct cRGB led[1];
 
-char modifiers;
+uint8_t modifiers;
 int main() {
     
     led[0].r=120;

@@ -1,7 +1,8 @@
 WAIT 1000
 MODON 8
-TYPE R
+TYPE r
 MODOFF 8
+WAIT 100
 TYPE https://www.youtube.com/watch?v=dQw4w9WgXcQ
 PRESS 0x28
 GOTO 5
