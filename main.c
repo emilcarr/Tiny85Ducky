@@ -229,53 +229,6 @@ void pressKey(uint8_t modifiers, uint8_t keycode1) {
     usbReportSend();
 }
 
-char next;
-void typeString(char* string) {
-    while(*string != '\r'){
-        usbPoll();
-        if((*string >= 65) & (*string <= 90))                               // A-Z UPPER
-            pressKey(KEYCODE_MOD_LEFT_SHIFT, *string - 61);
-        else if ((*string >= 97) & (*string <= 122))                        // A-Z LOWER
-            pressKey(0, *string - 93);
-        else if ((*string >= 49) & (*string <= 57))                         // 1-9
-            pressKey(0, *string - 19);
-        else {
-            switch(*string) {
-                case '0':
-                    pressKey(0, KEYCODE_0);
-                    break;
-                case '=':
-                    pressKey(0, KEYCODE_EQUAL);
-                    break;
-                case '+':
-                    pressKey(KEYCODE_MOD_LEFT_SHIFT, KEYCODE_EQUAL);
-                    break;
-                case ' ':
-                    pressKey(0, KEYCODE_SPACE);
-                    break;
-                case ';':
-                    pressKey(0, KEYCODE_SEMICOLON);
-                case ':':
-                    pressKey(KEYCODE_MOD_LEFT_SHIFT, KEYCODE_SEMICOLON);
-                    break;
-                case '/':
-                    pressKey(0, KEYCODE_SLASH);
-                    break;
-                case '?':
-                    pressKey(KEYCODE_MOD_LEFT_SHIFT, KEYCODE_SLASH);
-                    break;
-                case '.':
-                    pressKey(0, KEYCODE_PERIOD);
-                    break;
-                default:
-                    pressKey(0, KEYCODE_COMMA);
-                    break;
-            }
-        }
-        pressKey(0, 0);
-        string += 1;
-    }
-}
 
 void wait(uint32_t millis) {
     while(millis--) {
@@ -285,8 +238,13 @@ void wait(uint32_t millis) {
 }
 
 #include "Light_WS2812/light_ws2812.h"
+
+#define CONFIG_LOOP         0x01
+#define CONFIG_LOOP_DELAY   0x02
+
 struct cRGB led[1];
 
+char modifiers;
 int main() {
     
     led[0].r=120;
@@ -296,18 +254,70 @@ int main() {
     ws2812_setleds(led,1);
 
     usbBegin();
-
-    wait(300000);
-
-    while(1){
+    
+    uint8_t byte;
+    for(uint16_t i = 0; i < 512; i++) {
         usbPoll();
-        pressKey(KEYCODE_MOD_LEFT_GUI, KEYCODE_R);
-        pressKey(0, 0);
-        wait(50);
-        typeString("https://www.youtube.com/watch?v=dQw4w9WgXcQ\r");
-        pressKey(0, KEYCODE_ENTER);
-        pressKey(0, 0);
+
+        byte = eeprom_read_byte(i);
+        if(byte > 0xE7) {
+            switch(byte) {
+                case 0xE8:                          // GOTO
+                    i++;                            // Move to next location;
+                    i = eeprom_read_word(i) - 1;    // Jump to new location ((i - 1) + 1);
+                    break;
+
+                case 0xE9:                          // WAIT
+                    i++;                            
+                    wait(eeprom_read_dword(i));     // Read 4 bytes and wait that amount in ms;
+                    i += 3;                         // Move to next bytecode (3 + 1);
+                    break;
+
+                case 0xEA:                          // JUMP IF NUM
+                    i++;
+                    if(led_state & KB_LED_NUM)      // Check numlock state;
+                        i = eeprom_read_word(i) - 1;
+                    else
+                        i++;
+                    break;
+
+                case 0xEB:                          // JUMP IF CAPS
+                    i++;
+                    if(led_state & KB_LED_CAPS)     
+                        i = eeprom_read_word(i) - 1;
+                    else
+                        i++;
+                    break;
+
+                case 0xEC:                          // JUMP IF SCROLL
+                    i++;
+                    if(led_state & KB_LED_SCROLL)     
+                        i = eeprom_read_word(i) - 1;
+                    else
+                        i++;
+                    break;
+                
+                case 0xED:                          // MODON
+                    i++;
+                    modifiers |= 1 << eeprom_read_byte(i);
+                    break;
+
+                case 0xEE:                          // MODOFF
+                    i++;
+                    modifiers &= ~( 1 << eeprom_read_byte(i));
+                    break;
+
+                case 0xEF:                          // SHIFT
+                    i++;
+                    pressKey(modifiers | KEYCODE_MOD_LEFT_SHIFT, eeprom_read_byte(i));
+                    break;
+            }
+            continue;
+        }
+        pressKey(modifiers, byte);
     }
+
+    while(1) usbPoll();
 
     return 0;
 }
