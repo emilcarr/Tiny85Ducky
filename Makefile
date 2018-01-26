@@ -1,7 +1,7 @@
 # WinAVR cross-compiler toolchain is used here
 CC = avr-gcc
 OBJCOPY = avr-objcopy
-MICRONUCLEUS = /home/emil/src/micronucleus/commandline/micronucleus
+MICRONUCLEUS = /home/emil/micronucleus/commandline/micronucleus
 
 # If you are not using ATtiny85 and the USBtiny programmer, 
 # update the lines below to match your configuration

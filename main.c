@@ -239,12 +239,9 @@ void wait(uint32_t millis) {
 #include "Light_WS2812/light_ws2812.h"
 #include <avr/eeprom.h>
 
-#define CONFIG_LOOP         0x01
-#define CONFIG_LOOP_DELAY   0x02
-
 struct cRGB led[1];
 
-uint8_t modifiers;
+uint8_t modifiers = 0;
 int main() {
     
     led[0].r=120;
@@ -300,12 +297,12 @@ int main() {
                 
                 case 0xED:                          // MODON
                     i++;
-                    modifiers |= 1 << eeprom_read_byte((uint8_t*)i);
+                    modifiers |= eeprom_read_byte((uint8_t*)i);
                     break;
 
                 case 0xEE:                          // MODOFF
                     i++;
-                    modifiers &= ~( 1 << eeprom_read_byte((uint8_t*)i));
+                    modifiers &= ~( eeprom_read_byte((uint8_t*)i));
                     break;
 
                 case 0xEF:                          // SHIFT
