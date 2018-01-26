@@ -249,7 +249,7 @@ int main() {
     led[0].b=0;
 
     ws2812_setleds(led,1);
-
+    
     usbBegin();
     
     uint8_t byte;
@@ -260,26 +260,26 @@ int main() {
 
         if(byte > 0xE7) {
             switch(byte) {
-                case 0xE8:                          // GOTO
-                    i++;                            // Move to next location;
-                    i = eeprom_read_word((uint16_t*)i) - 1;    // Jump to new location ((i - 1) + 1);
+                case 0xE8:                                  //  GOTO
+                    i++;                                    // Move to next location;
+                    i = eeprom_read_word((uint16_t*)i) - 1; // Jump to new location ((i - 1) + 1);
                     break;
 
-                case 0xE9:                          // WAIT
+                case 0xE9:                                  //  WAIT
                     i++;                            
-                    wait(eeprom_read_dword((uint32_t*)i));     // Read 4 bytes and wait that amount in ms;
-                    i += 3;                         // Move to next bytecode (3 + 1);
+                    wait(eeprom_read_dword((uint32_t*)i));  // Read 4 bytes and wait that amount in ms;
+                    i += 3;                                 // Move to next bytecode (3 + 1);
                     break;
 
-                case 0xEA:                          // JUMP IF NUM
+                case 0xEA:                                  //  JUMP IF NUM
                     i++;
-                    if(led_state & KB_LED_NUM)      // Check numlock state;
+                    if(led_state & KB_LED_NUM)              // Check numlock state;
                         i = eeprom_read_word((uint16_t*)i) - 1;
                     else
                         i++;
                     break;
 
-                case 0xEB:                          // JUMP IF CAPS
+                case 0xEB:                                  //  JUMP IF CAPS
                     i++;
                     if(led_state & KB_LED_CAPS)     
                         i = eeprom_read_word((uint16_t*)i) - 1;
@@ -287,7 +287,7 @@ int main() {
                         i++;
                     break;
 
-                case 0xEC:                          // JUMP IF SCROLL
+                case 0xEC:                                  //  JUMP IF SCROLL
                     i++;
                     if(led_state & KB_LED_SCROLL)     
                         i = eeprom_read_word((uint16_t*)i) - 1;
@@ -295,21 +295,47 @@ int main() {
                         i++;
                     break;
                 
-                case 0xED:                          // MODON
+                case 0xED:                                  //  MODON
                     i++;
                     modifiers |= eeprom_read_byte((uint8_t*)i);
                     break;
 
-                case 0xEE:                          // MODOFF
+                case 0xEE:                                  //  MODOFF
                     i++;
                     modifiers &= ~( eeprom_read_byte((uint8_t*)i));
                     break;
 
-                case 0xEF:                          // SHIFT
+                case 0xEF:                                  //  SHIFT
                     i++;
                     pressKey(modifiers | KEYCODE_MOD_LEFT_SHIFT, eeprom_read_byte((uint8_t*)i));
                     pressKey(0, 0);
                     break;
+
+                case 0xF0:                                  //  SET PIN DIRECTION
+                    i++;
+                    byte = eeprom_read_byte((uint8_t*)i);
+                    if ( byte & 1 )                         // OUTPUT PIN
+                        DDRB |=  ( 1UL << (byte >> 4) );
+                    else                                    // INPUT PIN
+                        DDRB &= ~( 1UL << (byte >> 4) );
+                
+                case 0xF1:                                  //  SET PIN
+                    i++;
+                    byte = eeprom_read_byte((uint8_t*)i);
+                    if ( byte & 1 )                         // SET PIN HIGH
+                        PORTB |=  ( 1UL << (byte >> 4) );
+                    else                                    // SET PIN LOW
+                        PORTB &= ~( 1UL << (byte >> 4) );
+
+                case 0xF2:                                  //  JUMP IF PIN
+                    i++;
+                    byte = eeprom_read_byte((uint8_t*)i);
+                    if (PINB & (1UL << byte))               // PIN IS HIGH
+                        i = eeprom_read_word((uint16_t*)i + 1) - 1;
+                    else
+                        i += 2;
+                    
+                    
             }
         }else {
             pressKey(modifiers, byte);

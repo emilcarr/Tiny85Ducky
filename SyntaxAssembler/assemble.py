@@ -28,12 +28,17 @@ lineNumber = 0
 endianness = "little"
 
 def makeRegistrar():
-    registry = {}
-    def registrar(func):
-        registry[func.__name__] = func
-        return func
-    registrar.all = registry
-    return registrar
+    functionRegistry = {}
+    syntaxRegistry = {}
+    def registrarWithSyntax(syntax):    
+        def registrar(func):
+            functionRegistry[func.__name__] = func
+            syntaxRegistry[func.__name__] = syntax
+            return func
+        return registrar
+    registrarWithSyntax.all = functionRegistry
+    registrarWithSyntax.syntax = syntaxRegistry
+    return registrarWithSyntax
 
 operations = makeRegistrar()
 
@@ -54,93 +59,151 @@ def wordBytes(x):
     elif endianness == "little":
         return bytes([(x & 0xFF), (x & 0xFF00) >> 8])
 
-@operations
+def byte(x):
+    if x > 0xFF:
+        raise OverflowError
+    return bytes([x & 0xFF])
+
+# GOTO
+@operations("GOTO")
 def GOTO(args):
     yield bytes([0xE8])
     try:
-        yield wordBytes(int(args))
+        yield wordBytes(int(args, 16))
     except (ValueError, OverflowError):
-        raise Exception("SyntaxError", "GOTO expects integer value. Syntax: GOTO [16-bit location]")
+        raise Exception("SyntaxError", "GOTO expects 16-bit hexadecimal value. Syntax: GOTO 0xllll (l = LOCATION)")
 
-@operations
+# WAIT
+@operations("WAIT expects 32-bit hexademical value. Syntax: WAIT 0xtttttttt")
 def WAIT(args):
     yield bytes([0xE9])
-    try:
-        yield dwordBytes(int(args))
-    except (ValueError, OverflowError):
-        raise Exception("SyntaxError", "WAIT expects integer value. Syntax: WAIT [32-bit time in ms]")
+    yield dwordBytes(int(args, 16))
 
-@operations
+# JUMP IF NUM LOCK
+@operations("JUMP IF NUM LOCK")
 def JMPIFN(args):
     yield bytes([0xEA])
     try:
-        yield wordBytes(int(args))
+        yield wordBytes(int(args, 16))
     except (ValueError, OverflowError):
-        raise Exception("SyntaxError", "JMPIFN expect integer value. Syntax: JMPIFN [16-bit location]")
+        raise Exception("SyntaxError", "JMPIFN expect 16-bit hexadecimal value. Syntax: JMPIFN 0xllll (l = LOCATION)")
 
-@operations
+# JUMP IF CAPS
+@operations("JUMP IF CAPS")
 def JMPIFC(args):
     yield bytes([0xEB])
     try:
-        yield wordBytes(int(args))
+        yield wordBytes(int(args, 16))
     except (ValueError, OverflowError):
-        raise Exception("SyntaxError", "JMPIFC expect integer value. Syntax: JMPIFC [16-bit location]")
+        raise Exception("SyntaxError", "JMPIFC expect hexadecimal value. Syntax: JMPIFC 0xllll (l = LOCATION)")
 
-@operations
+# JUMP IF SCROLL LOCK
+@operations("JUMP IF SCROLL LOCK")
 def JMPIFS(args):
     yield bytes([0xEC])
     try:
-        yield wordBytes(int(args))
+        yield wordBytes(int(args, 16))
     except (ValueError, OverflowError):
-        raise Exception("SyntaxError", "JMPIFS expect integer value. Syntax: JMPIFS [16-bit location]")
+        raise Exception("SyntaxError", "JMPIFS expect hexadecimal value. Syntax: JMPIFS 0xllll (l = LOCATION)")
 
-@operations
+# SET MODIFIER ON
+@operations("SET MODIFIER ON")
 def MODON(args):
     try:
-        yield bytes([0xED, int(args)])
+        yield bytes([0xED, int(args, 16)])
     except ValueError:
-        raise Exception("SyntaxError", "MODON expects integer value. Syntax: MODON [modifier]")
+        raise Exception("SyntaxError", "MODON expects hexadecimal value. Syntax: MODON 0xmm (m = MODIFIER)")
 
-@operations
+# SET MODIFIER OFF
+@operations("SET MODIFIER OFF")
 def MODOFF(args):
     try:
-        yield bytes([0xEE, int(args)])
+        yield bytes([0xEE, int(args, 16)])
     except ValueError:
-        raise Exception("SyntaxError", "MODOFF expects integer value. Syntax: MODOFF [modifier]")
+        raise Exception("SyntaxError", "MODOFF expects hexadecimal value. Syntax: MODOFF 0xmm (m = MODIFIER)")
 
-@operations
+# SHIFT
+@operations("SHIFT")
 def SHIFT(args):
-    if(len(args) > 0):
+    if(len(args) == 0):
         yield bytes([0xEF])
+    else:
+        raise Exception("SyntaxError", "Unknown argument for SHIFT. Syntax: SHIFT")
 
-@operations
+# SET PIN DIRECTION
+@operations("SET PIN DIRECTION")
+def PINDR(args):
+    try:
+        yield bytes([0xF0, int(args, 16)])
+    except ValueError:
+        raise Exception("SyntaxError", "PINDR expects hexadecimal value. Syntax: PINDR 0xpd (p = PIN, d = DIRECTION)")
+
+# SET PIN
+@operations("SET PIN")
+def SETPIN(args):
+    try:
+        yield bytes([0xF1, int(args, 16)])
+    except ValueError:
+        raise Exception("SyntaxError", "PINDR expects hexadecimal value. Syntax: PINDR 0xpv (p = PIN, v = VALUE")
+
+# JUMP IF PIN
+@operations("JUMP IF PIN")
+def JMPIFP(args):
+    args = args.split(' ')
+    try:
+        if len(args) != 2: raise ValueError
+        yield bytes([0xF2, int(args[0], 16)])
+        yield wordBytes(int(args[1], 16))
+    except ValueError:
+        raise Exception("SyntaxError", "JMPIFP expects two hexadeimal values. Syntax: 0x0p 0xllll (p = PIN, l = LOCATION)")
+
+@operations("TYPE STRING")
 def TYPE(args):
     for c in args:
         if c in shiftOn:
             yield bytes([0xEF])
         yield bytes([keyMap[ord(c)]])
 
-@operations
+@operations("PRESS")
 def PRESS(args):
     for c in args.split(' '):
         try:
             yield bytes([int(args, 16)])
         except ValueError:
-            raise Exception("SyntaxError", "PRESS expects hex value. Syntax: PRESS [keycode]")
+            raise Exception("SyntaxError", "PRESS expects hexadecimal value. Syntax: PRESS 0xkk (k = KEYCODE)")
 
 def assemble(inputFile):
     for line in inputFile:
-        op = line.split(' ')[0]
-        args = ' '.join(line.split(' ')[1:])
+        line = line.split(' ')
+        op = line[0]
+        args = ' '.join(line[1:])
         #lineNumber += 1
         if op in operations.all:
-            for b in operations.all[op](args):
-                yield b
+            try:
+                for b in operations.all[op](args):
+                    yield b
+            except Exception:
+                print("Syntax Error: {0}".format(operations.syntax[op]))
+                return
         else:
-            raise Exception("UnknownOperation", "This is not a valid or recognised operation.")
+            print("UnknownOperation: {0} is not a valid or recognised operation.".format(op))
+            return
+
+def makeFlasherConfig(inputFile):
+    with open(inputFile, 'rb'),open("program.h", 'w') as i,o:
+        i.seek(0,2)
+        o.write("#define PROGSIZE {0}\nuint8_t PROG[PROGSIZE] = {".format(i.tell()))
+        i.seek(0,0)
+        byte = i.read(1)
+        while byte != b'':
+            o.
+            byte = i.read(1)
 
 if __name__ == "__main__":
     if len(sys.argv) == 3:
+        if("--flasher" == sys.argv[1]):
+            makeFlasherConfig(sys.argv[1])
+            sys.exit(0)
         inputFile = open(sys.argv[1], 'r')
         outputFile = open(sys.argv[2], 'wb')
     else:
@@ -152,9 +215,13 @@ if __name__ == "__main__":
             outputFile.write(b)
     except Exception as inst:
         print("Exception on line %i: " % lineNumber)
-        print("%s: %s" % inst.args)
+        #print("%s: %s" % inst.args)
         print(inst)
-        sys.exit(1);
-
-    sys.exit(0);
+        inputFile.close()
+        outputFile.close()
+        sys.exit(1)
+    
+    inputFile.close()
+    outputFile.close()
+    sys.exit(0)
         
