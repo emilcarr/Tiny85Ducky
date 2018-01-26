@@ -15,17 +15,14 @@ keyMapUK =  [   0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
                 0x35, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A,
                 0x0B, 0x0C, 0x0D, 0x0E, 0x0F, 0x10, 0x11, 0x12,
                 0x13, 0x14, 0x15, 0x16, 0x17, 0x18, 0x19, 0x1A,
-                0x1B, 0x1C, 0x1D, 0x2F, 0x31, 0x30, 0x32, 0x4C  ]
+                0x1B, 0x1C, 0x1D, 0x2F, 0x31, 0x30, 0x32, 0x4C  ]       # ASCII Characters Mapped to UK Keyboard HID Scan codes
 
-shiftOnUK = '!"$%^&*()_+:<>?@{}|~ABCDEFGHIJKLMNOPQRSTUVWXYZ'
+shiftOnUK = '!"$%^&*()_+:<>?@{}|~ABCDEFGHIJKLMNOPQRSTUVWXYZ'            # ASCII Characters for which SHIFT must be held
 
 keyMap = keyMapUK
-shiftOn = shiftOnUK
+shiftOn = shiftOnUK                                                     # You can set which keymap to use in this way
 
-length = 0
-lineNumber = 0
-
-endianness = "little"
+endianness = "little"                                                   # ATTiny85 uses little endian. I spent a long time debugging because of this...
 
 def makeRegistrar():
     functionRegistry = {}
@@ -40,9 +37,12 @@ def makeRegistrar():
     registrarWithSyntax.syntax = syntaxRegistry
     return registrarWithSyntax
 
-operations = makeRegistrar()
+currentByte = 0
+markers = {"START":0}                                                   # Program locations of labels used by GOTO.
 
-def dwordBytes(x):
+operations = makeRegistrar()                                            # All operations to be compiled should be decorated with @operations
+
+def dwordBytes(x):                                                      # Convert an int into a dword. Ensures endianness is correct.
     if x > 0xFFFFFFFF:
         raise OverflowError
     if endianness == "big":
@@ -51,7 +51,7 @@ def dwordBytes(x):
         return bytes([(x & 0xFF), (x & 0xFF00) >> 8, (x & 0xFF0000) >> 16, (x & 0xFF000000) >> 24])
 
 
-def wordBytes(x):
+def wordBytes(x):                                                       # Convert an int into a word.
     if x > 0xFFFF:
         raise OverflowError
     if endianness == "big":
@@ -59,7 +59,7 @@ def wordBytes(x):
     elif endianness == "little":
         return bytes([(x & 0xFF), (x & 0xFF00) >> 8])
 
-def byte(x):
+def byte(x):                                                            # Convert int into 8-bit byte
     if x > 0xFF:
         raise OverflowError
     return bytes([x & 0xFF])
@@ -68,6 +68,10 @@ def byte(x):
 @operations("GOTO")
 def GOTO(args):
     yield bytes([0xE8])
+    if args in markers:
+        yield wordBytes(markers[args])
+        print("found marker for " + args)
+        return
     try:
         yield wordBytes(int(args, 16))
     except (ValueError, OverflowError):
@@ -172,16 +176,23 @@ def PRESS(args):
         except ValueError:
             raise Exception("SyntaxError", "PRESS expects hexadecimal value. Syntax: PRESS 0xkk (k = KEYCODE)")
 
+def createMarker(args):
+    if args not in markers:
+        markers[args] = currentByte
+
 def assemble(inputFile):
+    global currentByte
     for line in inputFile:
         line = line.split(' ')
         op = line[0]
         args = ' '.join(line[1:])
-        #lineNumber += 1
-        if op in operations.all:
+        if op[0] == ':':
+            createMarker(args)
+        elif op in operations.all:
             try:
                 for b in operations.all[op](args):
                     yield b
+                    currentByte += len(b)
             except Exception:
                 print("Syntax Error: {0}".format(operations.syntax[op]))
                 return
@@ -217,16 +228,8 @@ if __name__ == "__main__":
         print("Usage: python assemble.py inputfile outputfile")
         sys.exit(1);
     
-    try:
-        for b in assemble(inputFile):
-            outputFile.write(b)
-    except Exception as inst:
-        print("Exception on line %i: " % lineNumber)
-        #print("%s: %s" % inst.args)
-        print(inst)
-        inputFile.close()
-        outputFile.close()
-        sys.exit(1)
+    for b in assemble(inputFile):
+        outputFile.write(b)
     
     inputFile.close()
     outputFile.close()
