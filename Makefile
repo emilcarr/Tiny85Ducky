@@ -21,7 +21,7 @@ flash: main.hex
 
 # Housekeeping if you want it
 clean:
-	$(RM) *.o *.hex *.elf usbdrv/*.o
+	$(RM) *.o *.hex *.elf usbdrv/*.o Light_WS2812/*.o
 
 # From .elf file to .hex
 %.hex: %.elf

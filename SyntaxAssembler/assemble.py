@@ -190,19 +190,26 @@ def assemble(inputFile):
             return
 
 def makeFlasherConfig(inputFile):
-    with open(inputFile, 'rb'),open("program.h", 'w') as i,o:
+    import struct
+    with open(inputFile, 'rb') as i, open("program.h", 'w') as o:
         i.seek(0,2)
-        o.write("#define PROGSIZE {0}\nuint8_t PROG[PROGSIZE] = {".format(i.tell()))
+        o.write("#define PROGSIZE {0} \nuint8_t PROG[PROGSIZE] = {{".format( i.tell() ) )
         i.seek(0,0)
         byte = i.read(1)
+        p = 0
         while byte != b'':
-            o.
+            if p == 0:
+                o.write('{0}'.format( struct.unpack('<B', byte)[0] ) )
+            else:
+                o.write(', {0}'.format( struct.unpack('<B', byte)[0] ) )
+            p += 1;
             byte = i.read(1)
+        o.write("};")
 
 if __name__ == "__main__":
     if len(sys.argv) == 3:
         if("--flasher" == sys.argv[1]):
-            makeFlasherConfig(sys.argv[1])
+            makeFlasherConfig(sys.argv[2])
             sys.exit(0)
         inputFile = open(sys.argv[1], 'r')
         outputFile = open(sys.argv[2], 'wb')
