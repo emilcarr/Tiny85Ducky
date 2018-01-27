@@ -15,7 +15,7 @@ keyMapUK =  [   0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
                 0x35, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A,
                 0x0B, 0x0C, 0x0D, 0x0E, 0x0F, 0x10, 0x11, 0x12,
                 0x13, 0x14, 0x15, 0x16, 0x17, 0x18, 0x19, 0x1A,
-                0x1B, 0x1C, 0x1D, 0x2F, 0x31, 0x30, 0x32, 0x4C  ]       # ASCII Characters Mapped to UK Keyboard HID Scan codes
+                0x1B, 0x1C, 0x1D, 0x2F, 0x31, 0x30, 0x32, 0x4C  ]       # ASCII Characters Mapped to UK Keyboard HID Scan codes (see www.usb.org/developers/hidpage/Hut1_12v2.pdf Page 53)
 
 shiftOnUK = '!"$%^&*()_+:<>?@{}|~ABCDEFGHIJKLMNOPQRSTUVWXYZ'            # ASCII Characters for which SHIFT must be held
 
@@ -27,10 +27,10 @@ endianness = "little"                                                   # ATTiny
 def makeRegistrar():
     functionRegistry = {}
     syntaxRegistry = {}
-    def registrarWithSyntax(syntax):    
+    def registrarWithSyntax(name, syntax):    
         def registrar(func):
-            functionRegistry[func.__name__] = func
-            syntaxRegistry[func.__name__] = syntax
+            functionRegistry[name] = func
+            syntaxRegistry[name] = syntax
             return func
         return registrar
     registrarWithSyntax.all = functionRegistry
@@ -40,7 +40,7 @@ def makeRegistrar():
 currentByte = 0
 markers = {"START":0}                                                   # Program locations of labels used by GOTO.
 
-operations = makeRegistrar()                                            # All operations to be compiled should be decorated with @operations
+operations = makeRegistrar()                                            # All operations to be compiled should be iterables decorated with @operations
 
 def dwordBytes(x):                                                      # Convert an int into a dword. Ensures endianness is correct.
     if x > 0xFFFFFFFF:
@@ -65,141 +65,111 @@ def byte(x):                                                            # Conver
     return bytes([x & 0xFF])
 
 # GOTO
-@operations("GOTO")
+@operations("GOTO", "GOTO expects 16-bit hexadecimal value. Syntax: GOTO 0xllll (l = LOCATION)")
 def GOTO(args):
     yield bytes([0xE8])
     if args in markers:
         yield wordBytes(markers[args])
-        print("found marker for " + args)
-        return
-    try:
+    else:
         yield wordBytes(int(args, 16))
-    except (ValueError, OverflowError):
-        raise Exception("SyntaxError", "GOTO expects 16-bit hexadecimal value. Syntax: GOTO 0xllll (l = LOCATION)")
 
 # WAIT
-@operations("WAIT expects 32-bit hexademical value. Syntax: WAIT 0xtttttttt")
+@operations("WAIT", "WAIT expects 32-bit hexademical value. Syntax: WAIT 0xtttttttt")
 def WAIT(args):
     yield bytes([0xE9])
     yield dwordBytes(int(args, 16))
 
 # JUMP IF NUM LOCK
-@operations("JUMP IF NUM LOCK")
+@operations("JMPIFN", "JMPIFN expect 16-bit hexadecimal value. Syntax: JMPIFN 0xllll (l = LOCATION)")
 def JMPIFN(args):
     yield bytes([0xEA])
-    try:
-        yield wordBytes(int(args, 16))
-    except (ValueError, OverflowError):
-        raise Exception("SyntaxError", "JMPIFN expect 16-bit hexadecimal value. Syntax: JMPIFN 0xllll (l = LOCATION)")
+    yield wordBytes(int(args, 16))
 
 # JUMP IF CAPS
-@operations("JUMP IF CAPS")
+@operations("JMPIFC", "JMPIFC expect hexadecimal value. Syntax: JMPIFC 0xllll (l = LOCATION)")
 def JMPIFC(args):
     yield bytes([0xEB])
-    try:
-        yield wordBytes(int(args, 16))
-    except (ValueError, OverflowError):
-        raise Exception("SyntaxError", "JMPIFC expect hexadecimal value. Syntax: JMPIFC 0xllll (l = LOCATION)")
+    yield wordBytes(int(args, 16))
 
 # JUMP IF SCROLL LOCK
-@operations("JUMP IF SCROLL LOCK")
+@operations("JMPIFS", "JMPIFS expect hexadecimal value. Syntax: JMPIFS 0xllll (l = LOCATION)")
 def JMPIFS(args):
     yield bytes([0xEC])
-    try:
-        yield wordBytes(int(args, 16))
-    except (ValueError, OverflowError):
-        raise Exception("SyntaxError", "JMPIFS expect hexadecimal value. Syntax: JMPIFS 0xllll (l = LOCATION)")
+    yield wordBytes(int(args, 16))
 
 # SET MODIFIER ON
-@operations("SET MODIFIER ON")
+@operations("MODON", "MODON expects hexadecimal value. Syntax: MODON 0xmm (m = MODIFIER)")
 def MODON(args):
-    try:
-        yield bytes([0xED, int(args, 16)])
-    except ValueError:
-        raise Exception("SyntaxError", "MODON expects hexadecimal value. Syntax: MODON 0xmm (m = MODIFIER)")
+    yield bytes([0xED, int(args, 16)])
 
 # SET MODIFIER OFF
-@operations("SET MODIFIER OFF")
+@operations("MODOFF", "MODOFF expects hexadecimal value. Syntax: MODOFF 0xmm (m = MODIFIER)")
 def MODOFF(args):
-    try:
-        yield bytes([0xEE, int(args, 16)])
-    except ValueError:
-        raise Exception("SyntaxError", "MODOFF expects hexadecimal value. Syntax: MODOFF 0xmm (m = MODIFIER)")
+    yield bytes([0xEE, int(args, 16)])
 
 # SHIFT
-@operations("SHIFT")
+@operations("SHIFT", "Unknown argument for SHIFT. Syntax: SHIFT")
 def SHIFT(args):
     if(len(args) == 0):
         yield bytes([0xEF])
-    else:
-        raise Exception("SyntaxError", "Unknown argument for SHIFT. Syntax: SHIFT")
 
 # SET PIN DIRECTION
-@operations("SET PIN DIRECTION")
+@operations("PINDR", "PINDR expects hexadecimal value. Syntax: PINDR 0xpd (p = PIN, d = DIRECTION)")
 def PINDR(args):
-    try:
-        yield bytes([0xF0, int(args, 16)])
-    except ValueError:
-        raise Exception("SyntaxError", "PINDR expects hexadecimal value. Syntax: PINDR 0xpd (p = PIN, d = DIRECTION)")
-
+    yield bytes([0xF0, int(args, 16)])
+    
 # SET PIN
-@operations("SET PIN")
+@operations("SETPIN", "SETPIN expects hexadecimal value. Syntax: SETPIN 0xpv (p = PIN, v = VALUE)")
 def SETPIN(args):
-    try:
-        yield bytes([0xF1, int(args, 16)])
-    except ValueError:
-        raise Exception("SyntaxError", "PINDR expects hexadecimal value. Syntax: PINDR 0xpv (p = PIN, v = VALUE")
-
+    yield bytes([0xF1, int(args, 16)])
+    
 # JUMP IF PIN
-@operations("JUMP IF PIN")
+@operations("JMPIFP", "JMPIFP expects two hexadeimal values. Syntax: 0x0p 0xllll (p = PIN, l = LOCATION)")
 def JMPIFP(args):
     args = args.split(' ')
-    try:
-        if len(args) != 2: raise ValueError
-        yield bytes([0xF2, int(args[0], 16)])
-        yield wordBytes(int(args[1], 16))
-    except ValueError:
-        raise Exception("SyntaxError", "JMPIFP expects two hexadeimal values. Syntax: 0x0p 0xllll (p = PIN, l = LOCATION)")
+    if len(args) != 2: raise Exception
+    yield bytes([0xF2, int(args[0], 16)])
+    yield wordBytes(int(args[1], 16))
 
-@operations("TYPE STRING")
+@operations("TYPE", "TYPE STRING")
 def TYPE(args):
     for c in args:
         if c in shiftOn:
             yield bytes([0xEF])
         yield bytes([keyMap[ord(c)]])
 
-@operations("PRESS")
+@operations("PRESS", "PRESS expects hexadecimal value. Syntax: PRESS 0xkk (k = KEYCODE)")
 def PRESS(args):
     for c in args.split(' '):
-        try:
-            yield bytes([int(args, 16)])
-        except ValueError:
-            raise Exception("SyntaxError", "PRESS expects hexadecimal value. Syntax: PRESS 0xkk (k = KEYCODE)")
+        yield bytes([int(args, 16)])
 
+@operations(":", "Creates a pre-processor marker for use with GOTO.")
 def createMarker(args):
     if args not in markers:
         markers[args] = currentByte
+    return []
 
+## This function yields assembled bytes to be, eg, written to an output file.
+# It reads from a file or input stream one line at a time and compiles to bytecodes.
 def assemble(inputFile):
     global currentByte
-    for line in inputFile:
+    for line in inputFile:                                              # Iterate through file line by line.
         line = line.split(' ')
         op = line[0]
-        args = ' '.join(line[1:])
-        if op[0] == ':':
-            createMarker(args)
-        elif op in operations.all:
+        args = ' '.join(line[1:]).strip()
+        if op in operations.all:                                        # If the operation is recognized, call appropriate function and yield its output.
             try:
                 for b in operations.all[op](args):
                     yield b
-                    currentByte += len(b)
-            except Exception:
+                    currentByte += len(b)                               # Keep track of what byte the instruction is on.
+            except Exception:                                           # If a function raises an Exception, assume SyntaxError.
                 print("Syntax Error: {0}".format(operations.syntax[op]))
                 return
         else:
             print("UnknownOperation: {0} is not a valid or recognised operation.".format(op))
             return
 
+## This function reads the previously-generated bytecodes from a file and writes them into a C header file for use with the EEPROM flasher code.
 def makeFlasherConfig(inputFile):
     import struct
     with open(inputFile, 'rb') as i, open("program.h", 'w') as o:
@@ -218,8 +188,15 @@ def makeFlasherConfig(inputFile):
         o.write("};")
 
 if __name__ == "__main__":
-    if len(sys.argv) == 3:
-        if("--flasher" == sys.argv[1]):
+    if len(sys.argv) == 2:
+        if sys.argv[1] == "--list-operations":
+            for k,v in operations.syntax.items():
+                print("{0}\t\t\t\t{1}".format(k, v))
+            sys.exit(0)
+        else:
+            print("Usage: python assemble.py [--list-operations] [--flasher] (inputfile outputfile)")
+    elif len(sys.argv) == 3:
+        if sys.argv[1] == "--flasher":
             makeFlasherConfig(sys.argv[2])
             sys.exit(0)
         inputFile = open(sys.argv[1], 'r')

@@ -10,7 +10,7 @@ OBJFLAGS = -j .text -j .data -O ihex
 
 # Object files for the firmware (usbdrv/oddebug.o not strictly needed I think)
 #OBJECTS = usbdrv/usbdrv.o usbdrv/oddebug.o usbdrv/usbdrvasm.o main.o
-OBJECTS = main.o usbdrv/usbdrv.o usbdrv/usbdrvasm.o  light_ws2812/light_ws2812.o
+OBJECTS = main.o Light_WS2812/light_ws2812.o
 
 # By default, build the firmware and command-line client, but do not flash
 all: main.hex
@@ -21,7 +21,7 @@ flash: main.hex
 
 # Housekeeping if you want it
 clean:
-	$(RM) *.o *.hex *.elf usbdrv/*.o light_ws2812/*.o
+	$(RM) *.o *.hex *.elf Light_WS2812/*.o
 
 # From .elf file to .hex
 %.hex: %.elf
@@ -33,7 +33,7 @@ main.elf: $(OBJECTS)
 
 # Without this dependance, .o files will not be recompiled if you change 
 # the config! I spent a few hours debugging because of this...
-$(OBJECTS): usbconfig.h keys.h
+$(OBJECTS): Light_WS2812/light_ws2812.o 
 
 # From C source to .o object file
 %.o: %.c	

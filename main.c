@@ -22,13 +22,18 @@ License along with Tiny85Ducky. If not, see
 #include "usbconfig.h"
 #include "usbdrv/usbdrv.h"
 #include "keys.h"
+#include "light_ws2812/light_ws2812.h"
 
+#include <avr/eeprom.h>
 #include <avr/power.h>
 #include <util/delay.h>
 
 #define F_CPU 16500000UL
 
+struct cRGB led[1];
+
 uint8_t report_buffer[8];
+static uchar replyBuffer[16] = "REPLY TEST";
 char usb_hasCommed = 0;
 uint8_t idle_rate = 500 / 4;  // see HID1_11.pdf sect 7.2.4
 uint8_t protocol_version = 0; // see HID1_11.pdf sect 7.2.6
@@ -105,6 +110,11 @@ const PROGMEM char usbHidReportDescriptor[USB_CFG_HID_REPORT_DESCRIPTOR_LENGTH] 
 
 // see http://vusb.wikidot.com/driver-api
 // constants are found in usbdrv.h
+#define USBRQ_EEPROM_FLASH 0x0C
+#define USBRQ_EEPROM_READ 0x0D
+#define USBRQ_LED_BLUE 0x0E
+#define USBRQ_LED_RED 0x0F
+
 usbMsgLen_t usbFunctionSetup(uint8_t data[8])
 {
 	usb_hasCommed = 1;
@@ -134,19 +144,41 @@ usbMsgLen_t usbFunctionSetup(uint8_t data[8])
 			usbMsgPtr = (uint8_t*)report_buffer; // send the report data
 			return 8;
 		case USBRQ_HID_SET_REPORT:
-			if (rq->wLength.word == 1) // check data is available
-			{
-				// 1 byte, we don't check report type (it can only be output or feature)
-				// we never implemented "feature" reports so it can't be feature
-				// so assume "output" reports
-				// this means set LED status
-				// since it's the only one in the descriptor
+			if (rq->wValue.bytes[1] == 0x02) // check data is available
 				return USB_NO_MSG; // send nothing but call usbFunctionWrite
-			}
-			else // no data or do not understand data, ignore
-			{
-				return 0; // send nothing
-			}
+            else if (rq->wValue.bytes[1] == 0x03) { // FEATURE REPORT
+                    led[0].r=0;
+                    led[0].g=0;
+                    led[0].b=120;
+                    ws2812_setleds(led,1);
+                    return 0;
+			} else // Either no data to send or data not understood; Send nothing
+				return 0;
+
+        case USBRQ_EEPROM_FLASH:
+            //eeprom_update_word((uint16_t*)rq->wIndex.word, (uint16_t)rq->wValue.word);
+            return 0;
+
+        case USBRQ_EEPROM_READ:
+            return 0;
+        
+        case USBRQ_LED_BLUE:
+            led[0].r=0;
+            led[0].g=0;
+            led[0].b=120;
+            ws2812_setleds(led,1);
+            
+            usbMsgPtr = replyBuffer;
+            return sizeof(replyBuffer);
+
+        case USBRQ_LED_RED:
+            led[0].r=120;
+            led[0].g=0;
+            led[0].b=0;
+
+            ws2812_setleds(led,1);
+            return 0;
+
 		default: // do not understand data, ignore
 			return 0; // send nothing
 	}
@@ -236,10 +268,7 @@ void wait(uint32_t millis) {
     }
 }
 
-#include "Light_WS2812/light_ws2812.h"
-#include <avr/eeprom.h>
 
-struct cRGB led[1];
 
 uint8_t modifiers = 0;
 int main() {

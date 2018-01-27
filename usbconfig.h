@@ -234,12 +234,12 @@ extern void calibrateOscillator(void);
 
 /* -------------------------- Device Description --------------------------- */
 
-#define  USB_CFG_VENDOR_ID       0x81, 0x17
+#define  USB_CFG_VENDOR_ID       0xc0, 0x16 // V-USB Shared USB Keyboard
 /* USB vendor ID for the device, low byte first. If you have registered your
  * own Vendor ID, define it here. Otherwise you may use one of obdev's free
  * shared VID/PID pairs. Be sure to read USB-IDs-for-free.txt for rules!
  */
-#define  USB_CFG_DEVICE_ID       0x34, 0x24 /* = 0x05dc = 1500 */
+#define  USB_CFG_DEVICE_ID       0xdb, 0x27 // ^^
 /* This is the ID of the product, low byte first. It is interpreted in the
  * scope of the vendor ID. If you have registered your own VID with usb.org
  * or if you have licensed a PID from somebody else, define it here. Otherwise
@@ -269,8 +269,8 @@ extern void calibrateOscillator(void);
  * the macros. See the file USB-IDs-for-free.txt before you assign a name if
  * you use a shared VID/PID.
  */
-/*#define USB_CFG_SERIAL_NUMBER   'N', 'o', 'n', 'e' */
-/*#define USB_CFG_SERIAL_NUMBER_LEN   0 */
+//#define USB_CFG_SERIAL_NUMBER   'w', 'w', 'w', '.', 'f', 'a', 'l', 's', 'e', 'a', 's', 'c', 'e', 'n', 's', 'i', 'o', 'n', '.', 'x', 'y', 'z', ':', 'u', 's', 'b', 'k', 'b', 'd'
+//#define USB_CFG_SERIAL_NUMBER_LEN   29
 /* Same as above for the serial number. If you don't want a serial number,
  * undefine the macros.
  * It may be useful to provide the serial number through other means than at
