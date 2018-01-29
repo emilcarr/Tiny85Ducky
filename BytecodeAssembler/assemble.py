@@ -160,12 +160,15 @@ def SETPIN(args):
 @operations("JMPIFP", "Jump to 16-bit program location, if given pin on PORTB is HIGH.", "JMPIFP 0x0p 0xllll (p = PIN, l = LOCATION) || JMPIFP 0x0p marker (p = PIN)")
 def JMPIFP(args):
     args = args.split(' ')
-    if len(args) != 2: raise Exception
+    print("JMPIFP args:", args)
+    if len(args) < 2: raise Exception
     yield bytes([0xF2, int(args[0], 16)])
-    if args in markers:
+    if ' '.join(args[1:]) in markers:
+        print("Going to marker: ", ' '.join(args[1:]))
         yield wordBytes(markers[args])
     else:
-        yield wordBytes(int(args, 16))
+        if len(args) != 2: raise Exception
+        yield wordBytes(int(args[1], 16))
 
 @operations("TYPE", "Type given ASCII string as HID keycodes.", "TYPE str")
 def TYPE(args):
@@ -190,9 +193,8 @@ def createMarker(args):
 def assemble(inputFile, verboseOutput=False):
     global currentLine,currentByte
     output = []
-
-    for line in inputFile:                                              # Iterate through file line by line.
-
+     
+    for line in inputFile:                                              # Iterate through each operation
         line = line.strip().split(' ')
         op = line[0]
         args = ' '.join(line[1:])
